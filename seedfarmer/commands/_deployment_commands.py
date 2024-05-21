@@ -685,7 +685,7 @@ def apply(
     module_info_index = du.populate_module_info_index(deployment_manifest=deployment_manifest)
     destroy_manifest = du.filter_deploy_destroy(deployment_manifest, module_info_index)
 
-    module_depends_on_dict, module_dependencies_dict = du.generate_dependency_maps(manifest=deployment_manifest)
+    module_depends_on_dict, module_dependencies_dict, module_deployment_waves = du.generate_dependency_maps(manifest=deployment_manifest)
     _logger.debug("module_depends_on_dict: %s", json.dumps(module_depends_on_dict))
     _logger.debug("module_dependencies_dict: %s", json.dumps(module_dependencies_dict))
     violations = du.validate_module_dependencies(module_dependencies_dict, destroy_manifest)

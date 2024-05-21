@@ -151,7 +151,7 @@ def list_dependencies(
     dep_manifest = du.generate_deployed_manifest(deployment_name=deployment, skip_deploy_spec=True)
 
     if dep_manifest:
-        module_depends_on_dict, module_dependencies_dict = du.generate_dependency_maps(manifest=dep_manifest)
+        module_depends_on_dict, module_dependencies_dict, _ = du.generate_dependency_maps(manifest=dep_manifest)
         (
             print_dependency_list(
                 header_message=f"Modules that {module} in {group} of {deployment} DEPENDS ON : ",
