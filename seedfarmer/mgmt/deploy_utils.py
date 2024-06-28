@@ -204,11 +204,11 @@ def validate_module_dependencies(
 
     """
 
-    def _get_module_list(manifest: DeploymentManifest) -> List[str]:
+    def _get_module_list(manifest: DeploymentManifest) -> List[tuple[str, str]]:
         module_list = []
         for group in manifest.groups:
             for module in group.modules:
-                module_list.append(f"{group.name}-{module.name}")
+                module_list.append((group.name, module.name))
         return module_list
 
     volations = []
@@ -225,7 +225,9 @@ def validate_module_dependencies(
     return volations
 
 
-def generate_dependency_maps(manifest: DeploymentManifest) -> Tuple[Dict[str, List[str]], Dict[str, List[str]], List[List[str]]]:
+def generate_dependency_maps(
+    manifest: DeploymentManifest,
+) -> Tuple[Dict[str, List[str]], Dict[str, List[str]], List[List[str]]]:
     """
     Takes a deployment manifest object and returns two (2) dictionaries that contain:
         1. all the other modules that a given module depends on (module_depends_on)
@@ -245,28 +247,29 @@ def generate_dependency_maps(manifest: DeploymentManifest) -> Tuple[Dict[str, Li
             3. `module_deployment_waves` - ordered list of module deployment waves
     """
 
-    def add_to_list(target_dict: Dict[str, Any], key: str, val: str) -> None:
+    def add_to_list(target_dict: Dict[tuple[str, str], Any], key: Any, val: Any) -> None:
         active_list = target_dict.get(key) if target_dict.get(key) else []
         active_list.append(val) if val and val not in active_list else None  # type: ignore
         target_dict[key] = active_list
 
-    module_depends_on: Dict[str, Any] = {}
-    module_dependencies: Dict[str, Any] = {}
+    module_depends_on: Dict[tuple[str, str], Any] = {}
+    module_dependencies: Dict[tuple[str, str], Any] = {}
     for group in manifest.groups:
         for module in group.modules:
-            group_module_name = f"{group.name}-{module.name}"
+            group_module_name = (group.name, module.name)
             for parameter in module.parameters:
                 parameter_module_reference = None
                 if parameter.value_from and parameter.value_from.module_metadata:
                     parameter_module_reference = (
-                        f"{parameter.value_from.module_metadata.group}-{parameter.value_from.module_metadata.name}"
+                        parameter.value_from.module_metadata.group,
+                        parameter.value_from.module_metadata.name,
                     )
                 add_to_list(module_depends_on, group_module_name, parameter_module_reference)
                 if parameter_module_reference:
                     add_to_list(module_dependencies, parameter_module_reference, group_module_name)
 
-    module_deployment_waves = _sort_dependencies(module_depends_on.copy())
-    return module_depends_on, module_dependencies, module_deployment_waves
+    module_dynamic_groups = _sort_dependencies(module_depends_on.copy())
+    return module_depends_on, module_dependencies, module_dynamic_groups
 
 
 def prepare_ssm_for_deploy(
@@ -700,19 +703,19 @@ def _sort_dependencies(
     Returns
     -------
     List[List[str]]
-        List of deployment waves
+        List of topologically sorted dynamic groups
     """
-    deployment_waves = []
+    module_dynamic_groups = []
     while module_depends_on:
-        deployment_wave = []
+        dynamic_group = []
         modules = [module for module, depends_on in module_depends_on.items() if not depends_on]
         for module in modules:
-            deployment_wave.append(module)
+            dynamic_group.append(module)
             del module_depends_on[module]
             for mod, dep_on in module_depends_on.items():
                 module_depends_on[mod] = [d for d in dep_on if d != module]
-        deployment_waves.append(deployment_wave)
-    return deployment_waves
+        module_dynamic_groups.append(dynamic_group)
+    return module_dynamic_groups
 
 
 def update_deployspec(

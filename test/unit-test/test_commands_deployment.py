@@ -3,6 +3,7 @@ import os
 
 import mock_data.mock_deployment_manifest_for_destroy as mock_deployment_manifest_for_destroy
 import mock_data.mock_deployment_manifest_huge as mock_deployment_manifest_huge
+import mock_data.mock_deployment_manifest_huge_unsorted as mock_deployment_manifest_huge_unsorted
 import mock_data.mock_deployspec as mock_deployspec
 import mock_data.mock_manifests as mock_manifests
 import mock_data.mock_module_info_huge as mock_module_info_huge
@@ -51,7 +52,8 @@ def session_manager(sts_client):
 
 @pytest.mark.commands
 @pytest.mark.commands_deployment
-def test_apply_clean(session_manager, mocker):
+@pytest.mark.parametrize("dynamic_grouping", [False, True])
+def test_apply_clean(session_manager, mocker, dynamic_grouping):
     mocker.patch("seedfarmer.commands._deployment_commands.write_deployment_manifest", return_value=None)
     mocker.patch("seedfarmer.commands._deployment_commands.prime_target_accounts", return_value=None)
     mocker.patch("seedfarmer.commands._deployment_commands.du.populate_module_info_index", return_value=None)
@@ -60,7 +62,7 @@ def test_apply_clean(session_manager, mocker):
     mocker.patch("seedfarmer.commands._deployment_commands.du.validate_module_dependencies", return_value=None)
     mocker.patch("seedfarmer.commands._deployment_commands.destroy_deployment", return_value=None)
     mocker.patch("seedfarmer.commands._deployment_commands.deploy_deployment", return_value=None)
-    dc.apply(deployment_manifest_path="test/unit-test/mock_data/manifests/module-test/deployment-hc.yaml", dryrun=True)
+    dc.apply(deployment_manifest_path="test/unit-test/mock_data/manifests/module-test/deployment-hc.yaml", dryrun=True, dynamic_grouping=dynamic_grouping)
 
 
 @pytest.mark.commands
@@ -235,7 +237,8 @@ def test_execute_destroy(session_manager, mocker):
 
 @pytest.mark.commands
 @pytest.mark.commands_deployment
-def test_deploy_deployment(session_manager, mocker):
+@pytest.mark.parametrize("dynamic_grouping", [False, True])
+def test_deploy_deployment(session_manager, mocker, dynamic_grouping):
     import hashlib
 
     mock_hashlib = hashlib.md5(json.dumps({"hey": "yp"}, sort_keys=True).encode("utf-8"))
@@ -251,6 +254,7 @@ def test_deploy_deployment(session_manager, mocker):
     )
 
     dep = DeploymentManifest(**mock_deployment_manifest_huge.deployment_manifest)
+    dep.validate_and_set_module_defaults()
     mocker.patch("seedfarmer.commands._deployment_commands.print_manifest_inventory", return_value=None)
     mocker.patch("seedfarmer.commands._deployment_commands.du.validate_group_parameters", return_value=None)
     mocker.patch(
@@ -265,8 +269,56 @@ def test_deploy_deployment(session_manager, mocker):
     # mocker.patch("seedfarmer.commands._deployment_commands.module_info_index.get_module_info",
     #              return_value=None)
     mocker.patch("seedfarmer.commands._deployment_commands.print_bolded", return_value=None)
-    module_upstream_dep = {"Nothing": []}
 
+    module_upstream_dep, _, module_dynamic_groups = du.generate_dependency_maps(manifest=dep)
     dc.deploy_deployment(
-        deployment_manifest=dep, module_info_index=module_info_index, module_upstream_dep=module_upstream_dep
+        deployment_manifest=dep,
+        module_info_index=module_info_index,
+        module_upstream_dep=module_upstream_dep,
+        module_dynamic_groups=module_dynamic_groups,
+        dynamic_grouping=dynamic_grouping,
+    )
+
+
+@pytest.mark.commands
+@pytest.mark.commands_deployment
+def test_deploy_unsorted_deployment(session_manager, mocker):
+    import hashlib
+
+    mock_hashlib = hashlib.md5(json.dumps({"hey": "yp"}, sort_keys=True).encode("utf-8"))
+
+    import seedfarmer.mgmt.deploy_utils as du
+
+    mocker.patch(
+        "seedfarmer.mgmt.deploy_utils.mi.get_parameter_data_cache",
+        return_value=mock_module_info_huge.module_index_info_huge,
+    )
+    module_info_index = du.populate_module_info_index(
+        deployment_manifest=DeploymentManifest(**mock_manifests.deployment_manifest)
+    )
+
+    dep = DeploymentManifest(**mock_deployment_manifest_huge_unsorted.deployment_manifest)
+    dep.validate_and_set_module_defaults()
+    mocker.patch("seedfarmer.commands._deployment_commands.print_manifest_inventory", return_value=None)
+    mocker.patch("seedfarmer.commands._deployment_commands.du.validate_group_parameters", return_value=None)
+    mocker.patch(
+        "seedfarmer.commands._deployment_commands.get_deployspec_path",
+        return_value="test/unit-test/mock_data/mock_deployspec.yaml",
+    )
+    mocker.patch("seedfarmer.commands._deployment_commands.checksum.get_module_md5", return_value="asfsadfsdfa")
+    mocker.patch("seedfarmer.commands._deployment_commands.hashlib.md5", return_value=mock_hashlib)
+
+    mocker.patch("seedfarmer.commands._deployment_commands._deploy_validated_deployment", return_value=None)
+    mocker.patch("seedfarmer.commands._deployment_commands.du.need_to_build", return_value=None)
+    # mocker.patch("seedfarmer.commands._deployment_commands.module_info_index.get_module_info",
+    #              return_value=None)
+    mocker.patch("seedfarmer.commands._deployment_commands.print_bolded", return_value=None)
+
+    module_upstream_dep, _, module_dynamic_groups = du.generate_dependency_maps(manifest=dep)
+    dc.deploy_deployment(
+        deployment_manifest=dep,
+        module_info_index=module_info_index,
+        module_upstream_dep=module_upstream_dep,
+        module_dynamic_groups=module_dynamic_groups,
+        dynamic_grouping=True,
     )

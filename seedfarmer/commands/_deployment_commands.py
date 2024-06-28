@@ -435,13 +435,14 @@ def destroy_deployment(
     if show_manifest:
         print_manifest_json(destroy_manifest)
 
-
 def deploy_deployment(
     deployment_manifest: DeploymentManifest,
     module_info_index: du.ModuleInfoIndex,
     module_upstream_dep: Dict[str, List[str]],
+    module_dynamic_groups: List[List[str]],
     dryrun: bool = False,
     show_manifest: bool = False,
+    dynamic_grouping: bool = False,
 ) -> None:
     """
     deploy_deployment
@@ -452,7 +453,7 @@ def deploy_deployment(
     Parameters
     ----------
     deployment_manifest : DeploymentManifest
-        The DeploymentManifest objec of all modules to deploy
+        The DeploymentManifest object of all modules to deploy
     module_info_index:ModuleInfoIndex
         An index of all Module Info stored in SSM across all target accounts and regions
     module_upstream_dep: Dict[str, List[str]]
@@ -465,7 +466,9 @@ def deploy_deployment(
         By default False
     show_manifest : bool, optional
         This flag indicates to print out the DeploymentManifest object as s dictionary.
-
+        By default False
+    dynamic_grouping : bool, optional
+        This flag indicates tha deployment order should be determined dynamically based on module dependencies.
         By default False
     """
     deployment_name = cast(str, deployment_manifest.name)
@@ -480,11 +483,19 @@ def deploy_deployment(
     groups_to_deploy = []
     unchanged_modules = []
     _group_mod_to_deploy: List[str] = []
-    for group in deployment_manifest.groups:
+    for group in module_dynamic_groups if dynamic_grouping else deployment_manifest.groups:  # TODO: refactor
         modules_to_deploy = []
-        _logger.info(" Verifying all modules in %s for deploy ", group.name)
-        du.validate_group_parameters(group=group)
-        for module in group.modules:
+
+        if not dynamic_grouping:
+            _logger.info(" Verifying all modules in %s for deploy ", group.name)
+            du.validate_group_parameters(group=group)
+
+        for module in group if dynamic_grouping else group.modules:  # TODO: refactor
+            if dynamic_grouping:
+                group_name, module_name = module
+                group = deployment_manifest.get_group(group_name)
+                module = deployment_manifest.get_module(group_name, module_name)
+
             _logger.debug("Working on -- %s", module)
             if not module.path:
                 raise seedfarmer.errors.InvalidManifestError("Unable to parse module manifest, `path` not specified")
@@ -578,6 +589,7 @@ def apply(
     session_timeout_interval: int = 900,
     update_seedkit: bool = False,
     update_project_policy: bool = False,
+    dynamic_grouping: bool = False,
 ) -> None:
     """
     apply
@@ -615,6 +627,8 @@ def apply(
         Force update run of seedkit, defaults to False
     update_project_policy: bool
         Force update run of managed project policy, defaults to False
+    dynamic_grouping: bool
+        Dynamically form deployment groups based on module dependencies
 
     Raises
     ------
@@ -685,9 +699,12 @@ def apply(
     module_info_index = du.populate_module_info_index(deployment_manifest=deployment_manifest)
     destroy_manifest = du.filter_deploy_destroy(deployment_manifest, module_info_index)
 
-    module_depends_on_dict, module_dependencies_dict, module_deployment_waves = du.generate_dependency_maps(manifest=deployment_manifest)
-    _logger.debug("module_depends_on_dict: %s", json.dumps(module_depends_on_dict))
-    _logger.debug("module_dependencies_dict: %s", json.dumps(module_dependencies_dict))
+    module_depends_on_dict, module_dependencies_dict, module_dynamic_groups = du.generate_dependency_maps(
+        manifest=deployment_manifest
+    )
+    # _logger.debug("module_depends_on_dict: %s", json.dumps(module_depends_on_dict))
+    # _logger.debug("module_dependencies_dict: %s", json.dumps(module_dependencies_dict))
+    # _logger.debug("module_dynamic_groups: %s", json.dumps(module_dynamic_groups))
     violations = du.validate_module_dependencies(module_dependencies_dict, destroy_manifest)
     if violations:
         print_dependency_error_list(
@@ -706,8 +723,10 @@ def apply(
         deployment_manifest=deployment_manifest,
         module_info_index=module_info_index,
         module_upstream_dep=module_depends_on_dict,
+        module_dynamic_groups=module_dynamic_groups,
         dryrun=dryrun,
         show_manifest=show_manifest,
+        dynamic_grouping=dynamic_grouping,
     )
 
 

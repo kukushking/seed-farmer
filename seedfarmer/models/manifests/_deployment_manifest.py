@@ -463,6 +463,11 @@ class DeploymentManifest(CamelModel):
     def get_module(self, group: str, module: str) -> Optional[ModuleManifest]:
         return self._module_index.get((group, module), None)
 
+    def get_group(self, group_name: str) -> Optional[ModulesManifest]:
+        for group in self.groups:
+            if group.name == group_name:
+                return group
+
     def populate_seedkit_metadata(self, account_id: str, region: str, seedkit_dict: Dict[str, Any]) -> None:
         for target_account in self.target_account_mappings:
             for region_mapping in target_account.region_mappings:

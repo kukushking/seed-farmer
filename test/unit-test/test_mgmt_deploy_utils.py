@@ -63,15 +63,16 @@ def session_manager(sts_client):
 @pytest.mark.mgmt
 @pytest.mark.mgmt_deployment_utils
 def test_dependency_maps():
-    module_depends_on, module_dependencies, module_deployment_waves = du.generate_dependency_maps(
+    module_depends_on, module_dependencies, module_dynamic_groups = du.generate_dependency_maps(
         DeploymentManifest(**mock_manifests.deployment_manifest)
     )
-    assert "optionals-networking" in list(module_depends_on["core-eks"])
-    assert "core-eks" in list(module_dependencies["optionals-networking"])
-    assert set(["optionals-networking", "optionals-datalake-buckets"]) == set(module_deployment_waves[0])
-    assert set(["core-eks", "core-efs"]) == set(module_deployment_waves[1])
-    assert set(["platform-kubeflow-platform", "platform-efs-on-eks", "users-kubeflow-users"]) == set(
-        module_deployment_waves[2]
+    assert ("optionals", "networking") in list(module_depends_on[("core", "eks")])
+    assert ("core", "eks") in list(module_dependencies[("optionals", "networking")])
+
+    assert set([("optionals", "networking"), ("optionals", "datalake-buckets")]) == set(module_dynamic_groups[0])
+    assert set([("core", "eks"), ("core", "efs")]) == set(module_dynamic_groups[1])
+    assert set([("platform", "kubeflow-platform"), ("platform", "efs-on-eks"), ("users", "kubeflow-users")]) == set(
+        module_dynamic_groups[2]
     )
 
 
