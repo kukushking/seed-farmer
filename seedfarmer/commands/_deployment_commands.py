@@ -242,8 +242,9 @@ def _execute_destroy(mdo: ModuleDeployObject) -> Optional[ModuleDeploymentRespon
     session = (
         SessionManager().get_or_create().get_deployment_session(account_id=target_account_id, region_name=target_region)
     )
-    module_metadata = get_module_metadata(cast(str, mdo.deployment_manifest.name), mdo.group_name, mdo.module_name, session=session)
-    mdo.module_metadata = json.dumps(module_metadata)
+    mdo.module_metadata = json.dumps(
+        get_module_metadata(cast(str, mdo.deployment_manifest.name), mdo.group_name, mdo.module_name, session=session)
+    )
     mdo.parameters = load_parameter_values(
         deployment_name=cast(str, mdo.deployment_manifest.name),
         parameters=module_manifest.parameters,
