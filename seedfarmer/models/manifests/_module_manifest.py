@@ -100,6 +100,7 @@ class ModuleManifest(CamelModel):
     npm_mirror_secret: Optional[str] = None
     pypi_mirror: Optional[str] = None
     pypi_mirror_secret: Optional[str] = None
+    module_role_name: Optional[str] = None
     _target_account_id: Optional[str] = PrivateAttr(default=None)
     _local_path: Optional[str] = PrivateAttr(default=None)
 

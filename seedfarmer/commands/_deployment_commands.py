@@ -201,6 +201,7 @@ def _execute_deploy(
         )
 
     mdo.module_role_name = module_role_name
+    module_manifest.module_role_name = module_role_name
 
     # Get the current module's SSM if it was already loaded...
     session = SessionManager().get_or_create().get_deployment_session(account_id=account_id, region_name=region)
@@ -258,11 +259,7 @@ def _execute_destroy(mdo: ModuleDeployObject) -> Optional[ModuleDeploymentRespon
         region=target_region,
     )
     # Use module deployment role from the metadata if it is available, otherwise fall back to default module role
-    mdo.module_role_name = (
-        module_metadata.get("ModuleDeploymentRoleName")
-        if module_metadata and module_metadata.get("ModuleDeploymentRoleName")
-        else module_role_name
-    )
+    mdo.module_role_name = (module_manifest.module_role_name if module_manifest.module_role_name else module_role_name)
 
     if module_stack_exists:
         commands.force_manage_policy_attach(
